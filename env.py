@@ -80,7 +80,9 @@ class HomeostaticEnv(gym.Env):
         - 'func_name' (assume módulo local `rewards`)
         """
         if callable(rewarding):
-            return rewarding
+            def callable_reward(action, learned_params=None):
+                return rewarding(self, action, learned_params=learned_params)
+            return callable_reward
 
         if isinstance(rewarding, str):
             key = rewarding.strip().lower()
