@@ -1,5 +1,6 @@
 from typing import Optional
 import random
+import importlib
 import gymnasium as gym
 import numpy as np
 
@@ -67,8 +68,64 @@ class HomeostaticEnv(gym.Env):
         )
 
         self.rewarding = rewarding
+        self.reward_fn = self._load_reward_function(rewarding)
 
-        
+    def _load_reward_function(self, rewarding):
+        """Configura a função de recompensa para ser usada no step().
+
+        rewarding pode ser:
+        - callable(env, action, learned_params=None)
+        - 'default', 'qd', 'operational_regimes', 'OR', 'OR_full'
+        - 'rewards:func_name' ou 'module:func_name' para plugin externo
+        - 'func_name' (assume módulo local `rewards`)
+        """
+        if callable(rewarding):
+            return rewarding
+
+        if isinstance(rewarding, str):
+            key = rewarding.strip().lower()
+            if key in ("default",):
+                return self._default_reward
+            if key in ("qd",):
+                return self._qd_reward
+            if key in ("operational_regimes", "or", "or_full"):
+                return self._operationalregimes_reward
+
+            module_name = "rewards"
+            func_name = rewarding
+            if ":" in rewarding:
+                module_name, func_name = [p.strip() for p in rewarding.split(":", 1)]
+
+            try:
+                module = importlib.import_module(module_name)
+                func = getattr(module, func_name)
+                if not callable(func):
+                    raise TypeError(f"{func_name} em {module_name} não é callable")
+
+                def plugin_reward(action, learned_params=None):
+                    return func(self, action, learned_params=learned_params)
+
+                return plugin_reward
+            except Exception as e:
+                raise ImportError(
+                    f"Não foi possível carregar função de recompensa '{rewarding}': {e}"
+                ) from e
+
+        raise ValueError(
+            "Parâmetro 'rewarding' inválido: use callable, 'default', 'qd', 'operational_regimes', "
+            "ou 'rewards:func_name'"
+        )
+
+    def _default_reward(self, action, learned_params=None):
+        return self._default_step(action)
+
+    def _qd_reward(self, action, learned_params=None):
+        return self._qd_step(action)
+
+    def _operationalregimes_reward(self, action, learned_params=None):
+        return self._operationalregimes_step(action, learned_params=learned_params)
+
+
     def _get_obs(self):
         obs = np.asarray(self.state + self.survival_zone + self.safety_zone + self.decay_ratio + [self.current_budget], dtype=float)
         if self.obs_noise_std > 0.0:
@@ -112,12 +169,7 @@ class HomeostaticEnv(gym.Env):
         return self._get_obs(), self._get_info()
     
     def step(self, action, learned_params: dict = None):
-        if self.rewarding == "QD":
-            return self._qd_step(action)
-        elif self.rewarding in ("operational_regimes", "OR_full", "OR"):
-            return self._operationalregimes_step(action, learned_params=learned_params)
-        else:
-            return self._default_step(action)
+        return self.reward_fn(action, learned_params=learned_params)
 
     def _resolve_or_params(self, learned_params=None):
         """Retorna (safety_zone_list, penalty_ratio_float), usando learned_params se disponível."""

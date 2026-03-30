@@ -42,7 +42,7 @@ Unlike continuous baselines (Standard Homeostatic / Differential Quadratic), OR 
 | Parameter | Default | Description |
 |---|---|---|
 | `num_vars` | `2` | Number of homeostatic variables (`n`) |
-| `rewarding` | `"default"` | Reward function: `"default"` (DR), `"QD"`, or `"OR"` |
+| `rewarding` | `"default"` | Reward function: `"default"` (DR), `"QD"`, `"OR"`, or plugin `module:func` (e.g. `rewards:custom_reward`) |
 | `correction_budget` | `1.0` | Maximum total correction per step (`b`) |
 | `random_budget` | `False` | Sample `b ~ U(0,1]` at each reset |
 | `obs_noise_std` | `0.0` | Standard deviation of observation noise (`σ_obs`) |
@@ -158,6 +158,19 @@ while not done:
     action = env.action_space.sample()
     obs, reward, terminated, truncated, info = env.step(action)
     done = terminated or truncated
+```
+
+### Plugin de recompensas
+
+```python
+from env import HomeostaticEnv
+
+# Carrega custom reward em rewards.py
+env = HomeostaticEnv(num_vars=10, rewarding="rewards:custom_reward")
+obs, info = env.reset(seed=123)
+
+# Também permite atalho se o módulo for rewards
+env2 = HomeostaticEnv(num_vars=10, rewarding="custom_reward")
 ```
 
 ---
