@@ -126,6 +126,8 @@ Main dependencies: `torch`, `gymnasium`, `stable-baselines3`, `numpy`, `matplotl
 
 ## Usage
 
+![Python package](https://github.com/<your-user>/<your-repo>/actions/workflows/python-package.yml/badge.svg)
+
 ### Run the factorial experiment (C1–C8)
 
 ```bash
