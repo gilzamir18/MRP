@@ -185,8 +185,6 @@ class HomeostaticEnv(gym.Env):
         else:
             sz = self.safety_zone
             beta = self.penalty_ratio
-        if self.use_learned_params:
-            beta = beta * 10
         return sz, beta
 
     def _apply_budget(self, action):
@@ -248,7 +246,7 @@ class HomeostaticEnv(gym.Env):
         for i in range(self.num_vars):
             dt = abs(self.state[i] - self.target_values[i])
             dt_1 = abs(self.prev_state[i] - self.target_values[i])
-            u = (self.state[i] <= sz[i])
+            u = (dt <= sz[i])
             v = (dt_1 <= dt)
             reward += (u + (1 - u) * (1 - (1 + beta) * v))
         return self._get_obs(), reward * self.reward_scale, done, ended, self._get_info()
