@@ -571,7 +571,7 @@ def main():
     parser.add_argument("--eval-episodes",  type=int, default=30, help="Numero de episodios de avaliacao por seed")
     parser.add_argument("--timesteps",      type=int, default=300000, help="Timesteps por treino")
     parser.add_argument("--dims",           type=int, nargs=2, default=[50, 100], help="Dimensoes n1 e n2 (default: 50 100)")
-    parser.add_argument("--device",         type=str, default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument("--device",         type=str, default="cpu", help="Dispositivo PyTorch ('cpu' ou 'cuda', default: cpu)")
     parser.add_argument("--quick-test",     action="store_true", help="Execucao ultra-rapida para verificacao")
     args = parser.parse_args()
 

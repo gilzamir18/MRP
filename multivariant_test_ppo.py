@@ -520,30 +520,30 @@ def statistical_report(variant_means: dict[str, list[float]], alpha: float = ALP
     n_pairs = len(pairs)
     alpha_b = alpha / n_pairs
 
-    print(f"\n{'─'*55}")
-    print("  Kruskal-Wallis  (H₀: distribuições idênticas entre grupos)")
-    print(f"{'─'*55}")
+    print(f"\n{'-'*55}")
+    print("  Kruskal-Wallis  (H0: distribuicoes identicas entre grupos)")
+    print(f"{'-'*55}")
 
     if any(len(a) < 2 for a in arrays):
-        print("  AVISO: k < 2 para algum grupo — testes sem poder estatístico.")
-        print("  Use --train-seeds ≥ 5 para resultados confiáveis.\n")
+        print("  AVISO: k < 2 para algum grupo — testes sem poder estatistico.")
+        print("  Use --train-seeds >= 5 para resultados confiaveis.\n")
         return
 
     H, p_kw = scipy_stats.kruskal(*arrays)
     sig_kw  = p_kw < alpha
-    print(f"  H = {H:.4f}   p = {p_kw:.4f}   {'*** SIGNIFICATIVO' if sig_kw else '(não significativo)'}")
-    print(f"  α = {alpha}   grupos: {groups}")
+    print(f"  H = {H:.4f}   p = {p_kw:.4f}   {'*** SIGNIFICATIVO' if sig_kw else '(nao significativo)'}")
+    print(f"  alpha = {alpha}   grupos: {groups}")
 
     if not sig_kw:
-        print("\n  → KW não rejeita H₀: sem evidência de diferença entre grupos.")
+        print("\n  -> KW nao rejeita H0: sem evidencia de diferencia entre grupos.")
         print("    Testes par-a-par omitidos.\n")
         return
 
-    print(f"\n{'─'*55}")
-    print(f"  Mann-Whitney U  (par-a-par, Bonferroni α_corr = {alpha_b:.4f})")
-    print(f"{'─'*55}")
+    print(f"\n{'-'*55}")
+    print(f"  Mann-Whitney U  (par-a-par, Bonferroni alpha_corr = {alpha_b:.4f})")
+    print(f"{'-'*55}")
     print(f"  {'Par':<18} {'U':>8} {'p_raw':>9} {'p_corr':>9} {'Sig':>4} {'r':>7} {'Efeito'}")
-    print(f"  {'':─<18} {'':─>8} {'':─>9} {'':─>9} {'':─>4} {'':─>7} {'':─<10}")
+    print(f"  {'':-<18} {'':->8} {'':->9} {'':->9} {'':->4} {'':->7} {'':-<10}")
 
     for i, j in pairs:
         a, b   = arrays[i], arrays[j]
@@ -554,7 +554,7 @@ def statistical_report(variant_means: dict[str, list[float]], alpha: float = ALP
         sig    = "***" if p_c < alpha else "ns"
         print(f"  {label:<18} {U:>8.1f} {p_r:>9.4f} {p_c:>9.4f} {sig:>4} {r:>7.3f} {effect_label(r)}")
 
-    print(f"\n  Interpretação de r:  |r|<0.1 negligível · 0.1 pequeno · 0.3 médio · 0.5 grande")
+    print(f"\n  Interpretacao de r:  |r|<0.1 negligivel | 0.1 pequeno | 0.3 medio | 0.5 grande")
     print()
 
 
@@ -712,23 +712,23 @@ def main():
             )
             all_results[variant].append(res)
             n_ep_train = len(res["ep_curve"])
-            print(f"  → mean={res['mean_ep_len']:.1f}  median={res['median_ep_len']:.1f}"
+            print(f"  -> mean={res['mean_ep_len']:.1f}  median={res['median_ep_len']:.1f}"
                   f"  ep_treino={n_ep_train}", end="")
             if "or_sz_mean" in res:
                 print(
-                    f"  sz={res['or_sz_mean']:.3f}±{res['or_sz_std']:.3f}"
-                    f"  β={res['or_beta_mean']:.3f}±{res['or_beta_std']:.3f}",
+                    f"  sz={res['or_sz_mean']:.3f}+-{res['or_sz_std']:.3f}"
+                    f"  beta={res['or_beta_mean']:.3f}+-{res['or_beta_std']:.3f}",
                     end="",
                 )
             print()
 
     # ── Resumo tabular ────────────────────────────────────────────────────────
     print(f"\n{'='*55}")
-    print(f"  Resumo — episode_length  (cada valor = média sobre {eval_episodes} eps)")
+    print(f"  Resumo - episode_length  (cada valor = media sobre {eval_episodes} eps)")
     print(f"{'='*55}")
-    print(f"  {'Variante':<10} {'µ(mean)':>9} {'σ(mean)':>9} {'med(mean)':>10}"
-          f"  {'µ(median)':>10} {'med(median)':>11}")
-    print(f"  {'':─<10} {'':─>9} {'':─>9} {'':─>10}  {'':─>10} {'':─>11}")
+    print(f"  {'Variante':<10} {'mu(mean)':>9} {'std(mean)':>9} {'med(mean)':>10}"
+          f"  {'mu(median)':>10} {'med(median)':>11}")
+    print(f"  {'':-<10} {'':->9} {'':->9} {'':->10}  {'':->10} {'':->11}")
 
     variant_means:   dict[str, list[float]] = {}
     variant_medians: dict[str, list[float]] = {}
@@ -752,10 +752,10 @@ def main():
     if or_runs:
         all_sz   = [r["or_sz_mean"]   for r in or_runs]
         all_beta = [r["or_beta_mean"] for r in or_runs]
-        print(f"\n  OR params aprendidos (média sobre seeds e passos de avaliação):")
-        print(f"    safety_zone   µ={np.mean(all_sz):.4f}  σ={np.std(all_sz):.4f}"
+        print(f"\n  OR params aprendidos (media sobre seeds e passos de avaliacao):")
+        print(f"    safety_zone   mu={np.mean(all_sz):.4f}  std={np.std(all_sz):.4f}"
               f"  [min={min(all_sz):.4f}  max={max(all_sz):.4f}]")
-        print(f"    penalty_ratio µ={np.mean(all_beta):.4f}  σ={np.std(all_beta):.4f}"
+        print(f"    penalty_ratio mu={np.mean(all_beta):.4f}  std={np.std(all_beta):.4f}"
               f"  [min={min(all_beta):.4f}  max={max(all_beta):.4f}]")
 
     statistical_report(variant_means, alpha=args.alpha)
