@@ -1,0 +1,5 @@
+[W] 36 jobs, 36 to run, 14 workers
+  [W] 10/36  last=604s  elapsed=10.1m  eta=26.4m
+  [W] 20/36  last=527s  elapsed=18.3m  eta=14.6m
+  [W] 30/36  last=2194s  elapsed=54.8m  eta=11.0m
+  [W] 36/36  last=2769s  elapsed=56.6m  eta=0.0m

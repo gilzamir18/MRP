@@ -1,0 +1,9 @@
+﻿[L2] 120 jobs, 80 to run, 14 workers
+  [L2] 10/80  last=861s  elapsed=14.4m  eta=100.9m
+  [L2] 20/80  last=757s  elapsed=25.8m  eta=77.3m
+  [L2] 30/80  last=841s  elapsed=39.7m  eta=66.1m
+  [L2] 40/80  last=877s  elapsed=41.9m  eta=41.9m
+  [L2] 50/80  last=1732s  elapsed=70.3m  eta=42.2m
+  [L2] 60/80  last=1942s  elapsed=101.4m  eta=33.8m
+  [L2] 70/80  last=1708s  elapsed=115.2m  eta=16.5m
+  [L2] 80/80  last=1338s  elapsed=124.9m  eta=0.0m

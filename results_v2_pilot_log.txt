@@ -1,0 +1,5 @@
+﻿[pilot] 36 jobs, 36 to run, 3 workers
+  [pilot] 10/36  last=127s  elapsed=9.1m  eta=23.7m
+  [pilot] 20/36  last=121s  elapsed=15.9m  eta=12.7m
+  [pilot] 30/36  last=121s  elapsed=22.3m  eta=4.5m
+  [pilot] 36/36  last=131s  elapsed=26.4m  eta=0.0m
