@@ -27,8 +27,15 @@ Stages (run in this order; each is resumable):
   L2 long      300k steps, C3 and C5, main + Alive + DR_alive, 10 seeds (adds to L)
   LG geometry  regime-geometry controls with the shared actor, C3-C6, 10 seeds
   LN rewnorm   main + Alive + DR_alive with reward normalisation, shared actor, C3-C6
+  NT  noterm   no-termination control (shared actor): a variable crossing the viability
+               bound is clipped to it and episodes always last 1000 steps, so a constant
+               per-step reward carries no information.  Main + Alive + DR_alive + geometry
+               (DeadZone, OR_noPen, OR_noZone), noise-free scarce/large conds C3, C5, C7.
+               Primary endpoint (fixed before running): fraction of variable-steps within
+               the viability bound (frac_viable).  C1 is at ceiling for any sensible policy.
+  NT2 noterm   same as NT for the noisy conditions C4, C6, C8
 
-Usage:  python experiments.py A [B ...] [--workers 15] [--out ../results_v2]
+Usage:  python experiments.py A [B ...] [--workers 15] [--out ../docs/results_v2]
 """
 from __future__ import annotations
 
@@ -195,14 +202,37 @@ def stage_LN(out):
             for c in L_SEP_CONDS for v in MAIN + ["Alive", "DR_alive"] for s in SEEDS]
 
 
+NT_VARIANTS = MAIN + ["Alive", "DR_alive", "DeadZone", "OR_noPen", "OR_noZone"]
+
+
+def _nt(out, conds, study="NT_noterm", seeds=SEEDS, **kw):
+    return [dict(study=study, out=out, cond=c, variant=v, seed=s, arch="shared",
+                 terminate=False, tag="shared_noterm", **kw)
+            for c in conds for v in NT_VARIANTS for s in seeds]
+
+
+def stage_NTP(out):
+    """Short pilot (30k steps, 1 seed, C3) written to a separate study folder."""
+    return _nt(out, ["C3"], study="NT_pilot", seeds=[42], timesteps=30_000)
+
+
+def stage_NT(out):
+    return _nt(out, ["C3", "C5", "C7"])
+
+
+def stage_NT2(out):
+    return _nt(out, ["C4", "C6", "C8"])
+
+
 STAGES = {"A": stage_A, "T": stage_T, "F": stage_F, "P": stage_P, "N": stage_N, "L": stage_L,
-          "L2": stage_L2, "LG": stage_LG, "LN": stage_LN}
+          "L2": stage_L2, "LG": stage_LG, "LN": stage_LN,
+          "NTP": stage_NTP, "NT": stage_NT, "NT2": stage_NT2}
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("stages", nargs="+", choices=list(STAGES))
     ap.add_argument("--workers", type=int, default=15)
-    ap.add_argument("--out", default=os.path.join(HERE, "..", "results_v2"))
+    ap.add_argument("--out", default=os.path.join(HERE, "..", "docs", "results_v2"))
     a = ap.parse_args()
     out = os.path.abspath(a.out)
     for st in a.stages:

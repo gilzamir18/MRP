@@ -133,7 +133,7 @@ class MRPEnv:
                  decay_mu: float = 1e-3, decay_std: float = 1e-3,
                  decay_walk: bool = True, max_steps: int = 1000,
                  noise_on: str = "state", reward_source: str = "latent",
-                 safety_zone_obs: float = 0.5):
+                 safety_zone_obs: float = 0.5, terminate: bool = True):
         self.n = n
         self.budget = float(budget)
         self.obs_noise = float(obs_noise)
@@ -145,6 +145,10 @@ class MRPEnv:
         self.noise_on = noise_on
         self.reward_source = reward_source
         self.safety_zone_obs = safety_zone_obs
+        # terminate=False ("no-termination" control, stage NT): a variable that crosses
+        # the viability bound is clipped to it (|v| <= 1) and the episode always runs the
+        # full horizon.  A constant per-step reward then carries no information.
+        self.terminate = terminate
         self.obs_dim = 4 * n + 1
         self.act_dim = n
         self._rng_dyn = None
@@ -205,6 +209,9 @@ class MRPEnv:
         neg = v < -MIN_SIGNIFICANT
         pos = v > MIN_SIGNIFICANT
         v = np.where(neg, v + a, np.where(pos, v - a, v))
+        viol = np.abs(v) > 1.0                 # viability violation (pre-clip)
+        if not self.terminate:
+            v = np.clip(v, -1.0, 1.0)
         self.v = v
         self.t += 1
         self._obs_v = self._noisy_state()
@@ -216,7 +223,7 @@ class MRPEnv:
         r = self.reward_fn(d0, d1, z=z, beta=beta)
 
         dev = np.abs(v)
-        terminated = bool(np.any(dev > 1.0))
+        terminated = bool(np.any(viol)) if self.terminate else False
         truncated = (not terminated) and self.t >= self.max_steps
-        info = {"alloc": a, "dev_prev": np.abs(v_prev), "dev": dev}
+        info = {"alloc": a, "dev_prev": np.abs(v_prev), "dev": dev, "viol": viol}
         return self._obs(), r, terminated, truncated, info

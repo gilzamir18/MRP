@@ -34,7 +34,7 @@ sys.path.insert(0, HERE)
 from experiments import MAIN, SIGN, GEOM, ALL_VARIANTS, INITS  # noqa: E402
 from runner import CONDITIONS  # noqa: E402
 
-RES = os.path.abspath(os.environ.get("MRP_RES", os.path.join(HERE, "..", "results_v2")))
+RES = os.path.abspath(os.environ.get("MRP_RES", os.path.join(HERE, "..", "docs", "results_v2")))
 OUT = os.path.join(RES, "analysis")
 FIG = os.path.join(OUT, "figs")
 TAU = 1000

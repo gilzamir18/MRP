@@ -1,1 +1,24 @@
 .venv/
+
+# Documentos, figuras, resultados e logs (não versionados)
+docs/
+
+# Saídas que scripts antigos ainda gravam na raiz
+results/
+results1/
+results_v2*/
+figs/
+figures/
+figures1/
+*_log*.txt
+
+# Arquivos não-código em qualquer lugar
+*.tex
+*.bib
+*.pdf
+*.png
+*.pt
+
+# Python
+__pycache__/
+*.pyc

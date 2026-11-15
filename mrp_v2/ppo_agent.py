@@ -365,6 +365,8 @@ def evaluate(env, ac: ActorCritic, seeds, ref_zone=0.5):
         obs = env.reset(int(sd))
         done, L = False, 0
         in_zone, alloc_ent, alloc_corr, top_share, n_nonrec = [], [], [], [], []
+        viable, all_viable, mean_dev = [], [], []
+        first_viol = None
         dead_var_init = dead_var_decay_pct = None
         v0 = np.abs(env.v.copy())
         while not done:
@@ -381,6 +383,12 @@ def evaluate(env, ac: ActorCritic, seeds, ref_zone=0.5):
             top_share.append(float(p_[top].sum()))
             in_zone.append(float((dv <= ref_zone).mean()))
             n_nonrec.append(float(((dv > ref_zone) & (dv >= d0)).mean()))
+            vi = info["viol"]
+            viable.append(1.0 - float(vi.mean()))
+            all_viable.append(float(not vi.any()))
+            mean_dev.append(float(dv.mean()))
+            if first_viol is None and vi.any():
+                first_viol = L
             done = term or trunc
             if term:
                 j = int(np.argmax(dv))
@@ -394,5 +402,10 @@ def evaluate(env, ac: ActorCritic, seeds, ref_zone=0.5):
             "alloc_dev_corr": float(np.mean(alloc_corr)) if alloc_corr else float("nan"),
             "top10_share": float(np.mean(top_share)),
             "dead_var_init_dev": dead_var_init, "dead_var_decay_pct": dead_var_decay_pct,
+            # viability diagnostics (meaningful in the no-termination control)
+            "frac_viable": float(np.mean(viable)), "frac_all_viable": float(np.mean(all_viable)),
+            "mean_dev": float(np.mean(mean_dev)),
+            "first_viol": first_viol if first_viol is not None else L,
+            "viol_event": first_viol is not None,
         })
     return out

@@ -35,7 +35,7 @@ CONDITIONS = {
 DEFAULTS = dict(timesteps=100_000, lr=3e-4, norm_reward=False, n_steps=1024,
                 batch_size=64, n_epochs=10, z_init=0.5, beta_init=1.0,
                 fixed_z=None, fixed_beta=None, reward_source="latent",
-                noise_on="state", log_std_init=0.0, norm_obs=False, arch="mlp", eval_seeds=list(range(1000, 1020)), tag="base")
+                noise_on="state", log_std_init=0.0, norm_obs=False, arch="mlp", terminate=True, eval_seeds=list(range(1000, 1020)), tag="base")
 
 
 def job_id(job):
@@ -61,7 +61,8 @@ def run_job(job):
     learn = j["variant"] == "OR_adapt"
     rfn = make_reward_fn(j["variant"], fixed_z=j["fixed_z"], fixed_beta=j["fixed_beta"])
     mk = lambda: MRPEnv(c["n"], c["budget"], c["noise"], rfn,
-                        reward_source=j["reward_source"], noise_on=j["noise_on"])
+                        reward_source=j["reward_source"], noise_on=j["noise_on"],
+                        terminate=j["terminate"])
     env = mk()
     ac = ActorCritic(env.obs_dim, env.act_dim, learn_or=learn,
                      z_init=j["z_init"], beta_init=j["beta_init"],
@@ -71,7 +72,8 @@ def run_job(job):
                 norm_reward=j["norm_reward"], norm_obs=j["norm_obs"],
                 episode_seed_rng=np.random.default_rng(10_000 + seed),
                 action_rng=np.random.default_rng(20_000 + seed))
-    eval_env = MRPEnv(c["n"], c["budget"], c["noise"], rfn, noise_on=j["noise_on"])
+    eval_env = MRPEnv(c["n"], c["budget"], c["noise"], rfn, noise_on=j["noise_on"],
+                      terminate=j["terminate"])
     ev = evaluate(eval_env, ac, j["eval_seeds"])
 
     # thin the OR-parameter trajectory (one entry per update is ~100 entries: keep all)

@@ -27,8 +27,8 @@ Unlike continuous baselines (Standard Homeostatic / Differential Quadratic), OR 
 ├── ppo2.py                   # Alternative PPO variant
 ├── multivariant_test_ppo.py  # Factorial experiment (C1–C8) + learning-curve plots
 ├── requirements.txt          # Python dependencies
-├── figures/                  # Generated plots
-└── results/                  # Saved experiment data
+├── docs/                     # Figures, results, logs, bib (not versioned)
+└── ...
 ```
 
 ---
@@ -144,7 +144,7 @@ python multivariant_test_ppo.py --train-seeds 5 --eval-episodes 30
 python multivariant_test_ppo.py --test-mode
 
 # Regenerate plots from saved results
-python multivariant_test_ppo.py --plot-only --results-file results/curves.npy
+python multivariant_test_ppo.py --plot-only --results-file docs/results/curves.npy
 ```
 
 ### Quick environment check

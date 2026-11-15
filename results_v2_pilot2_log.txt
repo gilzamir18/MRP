@@ -1,5 +1,0 @@
-﻿[pilot2] 32 jobs, 32 to run, 3 workers
-  [pilot2] 10/32  last=297s  elapsed=28.7m  eta=63.2m
-  [pilot2] 20/32  last=218s  elapsed=42.8m  eta=25.7m
-  [pilot2] 30/32  last=460s  elapsed=62.3m  eta=4.2m
-  [pilot2] 32/32  last=446s  elapsed=69.1m  eta=0.0m
