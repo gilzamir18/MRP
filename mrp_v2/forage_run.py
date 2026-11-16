@@ -43,6 +43,9 @@ FCONDS = {
     "F2": dict(k=2, decay_mu=0.016),
     "F3": dict(k=4, decay_mu=0.008),
     "F4": dict(k=4, decay_mu=0.010),
+    # number-of-needs sweep (same depletion as F1/F3): k = 6 and k = 8
+    "F5": dict(k=6, decay_mu=0.008),
+    "F6": dict(k=8, decay_mu=0.008),
     # calibration / pilot only (the pilot study F_pilot used k=4, decay 0.016 under the name F4)
     "K4d016": dict(k=4, decay_mu=0.016),
     "K4d012": dict(k=4, decay_mu=0.012),
@@ -74,9 +77,10 @@ def run_job(job):
     k = c["k"]
     kw = dict(W=j["W"], decay_mu=c["decay_mu"])
     env = ForageEnv(j["n_envs"], k, make_reward_fn(j["variant"]), terminate=j["terminate"], **kw)
-    ag = Agent(env.obs_dim, env.n_actions, learn_or=(j["variant"] == "OR_adapt"))
+    zi, bi = j.get("z_init", 0.5), j.get("beta_init", 1.0)
+    ag = Agent(env.obs_dim, env.n_actions, learn_or=(j["variant"] == "OR_adapt"), z_init=zi, beta_init=bi)
     log = train(env, ag, j["timesteps"], seed=int(j["seed"]), lr=j["lr"], ent_coef=j["ent_coef"],
-                outer=(j["variant"] == "OR_outer"))
+                outer=(j["variant"] == "OR_outer"), outer_kw=dict(z_init=zi, beta_init=bi))
     ev = evaluate(ag, k, kw, EVAL_SEEDS, terminate=j["terminate"], deterministic=False)
     ev_det = evaluate(ag, k, kw, EVAL_SEEDS, terminate=j["terminate"], deterministic=True)
     rec = None
@@ -168,7 +172,58 @@ def stage_FO(out, **kw):
                     tag="noterm", **kw) for c in MAIN_CONDS for s in SEEDS])
 
 
-STAGES = {"FZ": stage_FZ, "FO": stage_FO, "FR": stage_FR, "FC": stage_FC, "FP": stage_FP, "FT": stage_FT, "FN": stage_FN}
+# ---- follow-up studies (2026-11-15) -------------------------------------------------------
+INITS = [(0.30, 2.0), (0.30, 4.0), (0.88, 0.10)]   # punitive (moderate), punitive (strong), saturated
+
+
+def stage_FI(out, **kw):
+    """Does adaptation help when it STARTS from a bad calibration?  Joint (circular) and
+    outer-loop adaptation started at three points outside the good band of the (z, beta)
+    landscape; Fixed OR at the same points (for (0.30, 2.0) and (0.30, 4.0) it is already in
+    F_zbgrid with the same seeds)."""
+    jobs = []
+    for (z, b) in INITS:
+        tag = f"init_z{z:.2f}_b{b:.2f}"
+        for c in MAIN_CONDS:
+            for sd in SEEDS[:5]:
+                for v in ("OR_adapt", "OR_outer"):
+                    jobs.append(dict(out=out, study="F_init", cond=c, variant=v, seed=sd, terminate=True,
+                                     tag=tag, z_init=z, beta_init=b, **kw))
+                if (z, b) == (0.88, 0.10):
+                    jobs.append(dict(out=out, study="F_init", cond=c, variant=f"ORg_z{z:.2f}_b{b:.2f}",
+                                     seed=sd, terminate=True, tag=tag, **kw))
+    return jobs
+
+
+def stage_FK(out, **kw):
+    """Number-of-needs sweep: k = 6 and 8 (k = 2 and 4 are F1 and F3 of the main study)."""
+    return [dict(out=out, study="F_ksweep", cond=c, variant=v, seed=sd, terminate=t,
+                 tag="term" if t else "noterm", **kw)
+            for c in ("F5", "F6") for v in ("OR_fixed", "DQ", "Alive") for t in (True, False) for sd in SEEDS]
+
+
+def stage_FL(out, **kw):
+    """Long training (1e7 steps): does Adaptive OR lose performance as it drifts towards the
+    saturated region?  Fixed OR with the same seeds as reference."""
+    kw = {**kw, "timesteps": 10_000_000}
+    return [dict(out=out, study="F_long", cond=c, variant=v, seed=sd, terminate=True, tag="term10M", **kw)
+            for c in ("F1", "F3") for v in ("OR_adapt", "OR_fixed") for sd in SEEDS[:5]]
+
+
+def stage_FL2(out, **kw):
+    """Convergence check for k = 4 (1e7 steps): does OR ~ DQ in F3/F4 survive longer training?
+    Same study/tag as FL, so F3 OR_fixed is reused (skipped)."""
+    kw = {**kw, "timesteps": 10_000_000}
+    return [dict(out=out, study="F_long", cond=c, variant=v, seed=sd, terminate=True, tag="term10M", **kw)
+            for c in ("F3", "F4") for v in ("OR_fixed", "DQ", "Alive") for sd in SEEDS[:5]]
+
+
+def stage_FX(out, **kw):
+    """All three follow-ups in one pool (long runs first to shorten the tail)."""
+    return stage_FL(out, **kw) + stage_FI(out, **kw) + stage_FK(out, **kw)
+
+
+STAGES = {"FI": stage_FI, "FK": stage_FK, "FL": stage_FL, "FL2": stage_FL2, "FX": stage_FX, "FZ": stage_FZ, "FO": stage_FO, "FR": stage_FR, "FC": stage_FC, "FP": stage_FP, "FT": stage_FT, "FN": stage_FN}
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
