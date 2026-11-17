@@ -52,6 +52,10 @@ REWARD_SPECS = {
     "DeadZone":  dict(kind="deadzone", z=0.5),
     "OR_noZone": dict(kind="or", z=0.0, beta=1.0),
     "OR_noPen":  dict(kind="or", z=0.5, beta=0.0),
+    # sign controls on the scale of DQ (2026-11-16; see docs/prereg_2026-11-16.md)
+    "DQ_c001":   dict(kind="dq", alive=0.01),
+    "DQ_c01":    dict(kind="dq", alive=0.1),
+    "OR_m1":     dict(kind="or", z=0.5, beta=1.0, alive=-1.0),
 }
 
 

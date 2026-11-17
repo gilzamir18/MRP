@@ -218,12 +218,62 @@ def stage_FL2(out, **kw):
             for c in ("F3", "F4") for v in ("OR_fixed", "DQ", "Alive") for sd in SEEDS[:5]]
 
 
+def stage_FL3(out, **kw):
+    """FL2 extended to the 10 main seeds (seeds 42-46 are reused/skipped)."""
+    kw = {**kw, "timesteps": 10_000_000}
+    return [dict(out=out, study="F_long", cond=c, variant=v, seed=sd, terminate=True, tag="term10M", **kw)
+            for c in ("F3", "F4") for v in ("OR_fixed", "DQ", "Alive") for sd in SEEDS]
+
+
 def stage_FX(out, **kw):
     """All three follow-ups in one pool (long runs first to shorten the tail)."""
     return stage_FL(out, **kw) + stage_FI(out, **kw) + stage_FK(out, **kw)
 
 
-STAGES = {"FI": stage_FI, "FK": stage_FK, "FL": stage_FL, "FL2": stage_FL2, "FX": stage_FX, "FZ": stage_FZ, "FO": stage_FO, "FR": stage_FR, "FC": stage_FC, "FP": stage_FP, "FT": stage_FT, "FN": stage_FN}
+# ---- clarification studies (2026-11-16; pre-registered in docs/prereg_2026-11-16.md) ------
+def stage_FS(out, **kw):
+    """S1: sign controls on the scale of DQ, and OR shifted to be non-positive."""
+    return [dict(out=out, study="F_sign2", cond=c, variant=v, seed=sd, terminate=True, tag="term", **kw)
+            for c in ("F1", "F2", "F3", "F4", "F5", "F6") for v in ("DQ_c001", "DQ_c01", "OR_m1") for sd in SEEDS]
+
+
+def stage_FK10(out, **kw):
+    """S2: 1e7 steps for the rest of the k-sweep."""
+    kw = {**kw, "timesteps": 10_000_000}
+    J = [dict(out=out, study="F_long", cond=c, variant=v, seed=sd, terminate=True, tag="term10M", **kw)
+         for c in ("F1", "F2", "F5", "F6") for v in ("OR_fixed", "DQ") for sd in SEEDS]
+    J += [dict(out=out, study="F_long", cond=c, variant=v, seed=sd, terminate=True, tag="term10M", **kw)
+          for c in ("F5", "F6") for v in ("Alive", "DQ_c001") for sd in SEEDS]
+    return J
+
+
+def stage_FL30(out, **kw):
+    """S3: 3e7 steps in F4."""
+    kw = {**kw, "timesteps": 30_000_000}
+    return [dict(out=out, study="F_long30", cond="F4", variant=v, seed=sd, terminate=True, tag="term30M", **kw)
+            for v in ("OR_fixed", "DQ") for sd in SEEDS]
+
+
+def stage_FZ6(out, **kw):
+    """S4: (z, beta) grid in F6 (k = 8), same design as FZ."""
+    return [dict(out=out, study="F_zbgrid", cond="F6", variant=f"ORg_z{z:.2f}_b{b:.2f}", seed=s,
+                 terminate=True, tag="term", **kw)
+            for z in Z_GRID for b in B_GRID for s in SEEDS[:5]]
+
+
+def stage_FD(out, **kw):
+    """All clarification studies in one pool, longest jobs first."""
+    return stage_FL30(out, **kw) + stage_FK10(out, **kw) + stage_FZ6(out, **kw) + stage_FS(out, **kw)
+
+
+def stage_FN10(out, **kw):
+    """S6: 1e7 steps without termination, k = 4, 6, 8."""
+    kw = {**kw, "timesteps": 10_000_000}
+    return [dict(out=out, study="F_long_nt", cond=c, variant=v, seed=sd, terminate=False, tag="noterm10M", **kw)
+            for c in ("F3", "F4", "F5", "F6") for v in ("OR_fixed", "DQ") for sd in SEEDS]
+
+
+STAGES = {"FI": stage_FI, "FK": stage_FK, "FL": stage_FL, "FL2": stage_FL2, "FL3": stage_FL3, "FX": stage_FX, "FZ": stage_FZ, "FO": stage_FO, "FR": stage_FR, "FC": stage_FC, "FP": stage_FP, "FT": stage_FT, "FN": stage_FN, "FS": stage_FS, "FK10": stage_FK10, "FL30": stage_FL30, "FZ6": stage_FZ6, "FD": stage_FD, "FN10": stage_FN10}
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
