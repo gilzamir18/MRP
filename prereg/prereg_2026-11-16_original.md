@@ -1,0 +1,54 @@
+# Pré-registro — estudos de esclarecimento do forrageamento (2026-11-16)
+
+Escrito **antes** de rodar os jobs. Nenhum usa o OR adaptativo nem o laço externo.
+Unidade = seed de treino; Wilcoxon exato pareado, bilateral; Holm dentro de cada família abaixo.
+Desfecho primário com término: RMST (τ = 500), política estocástica; secundário: política determinística.
+
+## S1. Sinal no colapso do DQ (estudo `F_sign2`, 3M passos, término, F1–F6, 10 seeds)
+
+Medido antes (política aleatória, com término): o DQ por passo tem média −0,006 a −0,015 e DP 0,004–0,011,
+e é negativo em 98–99% dos passos. Somar +1 (como no DR + alive) afogaria a informação do DQ
+(razão ≈ 170:1) e o transformaria num Alive. Por isso o controle usa deslocamentos na escala do DQ:
+
+- `DQ_c001` = DQ + 0,01 — torna a recompensa média sob a política aleatória levemente positiva
+  (razão média/DP ≈ 0,3–0,9, comparável à do OR com k ≥ 4, 0,2–0,4).
+- `DQ_c01` = DQ + 0,1 — deslocamento dominante (≈ 20 DP): espera-se comportamento parecido com o Alive.
+- `OR_m1` = OR − 1 — o mesmo OR, deslocado para ser ≤ 0 em todo passo: testa se o OR, com sinal negativo, também colapsa.
+
+Famílias: (a) DQ_c001 vs DQ; (b) OR vs DQ_c001; (c) OR_m1 vs OR — cada uma com Holm sobre as 6 condições.
+Quantidade descritiva: fração da diferença OR − DQ explicada pelo sinal = (DQ_c001 − DQ) / (OR − DQ), em F5/F6.
+
+Previsões: com k = 6/8, DQ_c001 > DQ; OR_m1 < OR e, com k = 6/8, abaixo da política aleatória.
+Não há previsão para o sinal de OR − DQ_c001 (é o que se quer medir).
+
+## S2. Treino longo no resto do k-sweep (`F_long`, 10M passos, término, 10 seeds)
+
+F1, F2, F5, F6 × {OR, DQ}; F5, F6 × {Alive, DQ_c001}. Família: OR vs DQ, Holm sobre F1, F2, F5, F6.
+Pergunta: a dependência em k (DQ melhor com k = 2, OR com k ≥ 4) se mantém com 10M passos?
+
+## S3. Convergência em F4 (`F_long30`, 3·10^7 passos, término, 10 seeds)
+
+F4 × {OR, DQ}. Pergunta: a vantagem do OR em F4 com 10M (+81, p_holm = 0,010) se mantém com 30M?
+Teste único (sem Holm). Relata-se também a política determinística.
+
+## S4. Transferência da grade de (z, β) para outra tarefa (`F_zbgrid`, F6: k = 8, 5 seeds, 3M)
+
+Recompensa média por célula sob a política aleatória em F6, calculada antes de rodar
+(linhas z ∈ {0,1; 0,3; 0,5; 0,7; 0,9}, colunas β ∈ {0; 0,5; 1; 2; 4}):
+
+    z=0.1  +0.14 -0.29 -0.72 -1.58 -3.30
+    z=0.3  +0.35 +0.03 -0.30 -0.95 -2.25
+    z=0.5  +0.62 +0.43 +0.24 -0.14 -0.90
+    z=0.7  +0.85 +0.78 +0.70 +0.55 +0.25
+    z=0.9  +0.97 +0.95 +0.94 +0.91 +0.85
+
+Previsões (derivadas de F1–F4):
+- P1: as células com recompensa média ≤ −0,9 (5 células: z = 0,1 com β ≥ 2; z = 0,3 com β ≥ 2; z = 0,5 com β = 4)
+  ficam abaixo da RMST da política aleatória em F6.
+- P2: as 5 melhores células têm recompensa média entre −0,5 e +0,5.
+- P3: o padrão (0,5; 1) fica a menos de 1 DP entre seeds da melhor célula.
+- P4: as células com z = 0,9 (saturadas) ficam perto do Alive (dentro de ±25% da RMST do Alive em F6).
+
+## S5. Avaliação determinística (sem jobs novos)
+
+Para todas as comparações OR vs DQ (F1–F6, 3M e 10M), relatar também a política determinística.

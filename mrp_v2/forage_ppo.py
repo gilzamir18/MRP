@@ -173,7 +173,10 @@ class OuterParams:
 
 def train(env: ForageEnv, ag: Agent, total_timesteps, seed, n_steps=128, n_epochs=4, n_mb=4,
           lr=3e-4, gamma=0.99, lam=0.95, clip=0.2, vf_coef=0.5, ent_coef=0.01, max_grad_norm=0.5,
-          outer=False, outer_kw=None, freeze_policy=False):
+          outer=False, outer_kw=None, freeze_policy=False, norm_reward=False):
+    # norm_reward=True: reward scaling by the running SD of the discounted return, per env
+    # (as norm_reward in the MRP agent and SB3 VecNormalize): r / sqrt(Var[R] + 1e-8), clipped
+    # to +-10.  Added 2026-11-20 (second review); default False leaves earlier runs unchanged.
     torch.manual_seed(seed)
     # freeze_policy=True: the actor network is never updated (behaviour fixed at initialisation);
     # only the critic and, for Adaptive OR, the reward parameters (z, beta) learn.  Used to show
@@ -190,7 +193,10 @@ def train(env: ForageEnv, ag: Agent, total_timesteps, seed, n_steps=128, n_epoch
     ep_len, ep_ret = np.zeros(E, np.int64), np.zeros(E)
     ep_viable = np.zeros(E)
     outer_p = OuterParams(E, np.random.default_rng(30_000 + seed), **(outer_kw or {})) if outer else None
-    log = {"ep_end_step": [], "ep_len": [], "ep_ret": [], "or_traj": []}
+    log = {"ep_end_step": [], "ep_len": [], "ep_ret": [], "or_traj": [], "upd_entropy": []}
+    if norm_reward:
+        from ppo_agent import RunningMeanStd
+        ret_rms, ret_acc = RunningMeanStd(), np.zeros(E)
     steps = 0
     n_upd = max(1, total_timesteps // (n_steps * E))
     for upd in range(n_upd):
@@ -214,6 +220,10 @@ def train(env: ForageEnv, ag: Agent, total_timesteps, seed, n_steps=128, n_epoch
             ep_viable += 1.0 - info["viol"].mean(1)
             nobs = env.obs()
             r_used = r.astype(np.float64).copy()
+            if norm_reward:
+                ret_acc = ret_acc * gamma + r_used
+                ret_rms.update(ret_acc)
+                r_used = np.clip(r_used / math.sqrt(ret_rms.var + 1e-8), -10.0, 10.0)
             if trunc.any():
                 r_used[trunc] += gamma * ag.np_value(nobs[trunc])
             B_o[t], B_a[t], B_lp[t], B_v[t], B_r[t] = obs, a, lp, v, r_used
@@ -228,6 +238,8 @@ def train(env: ForageEnv, ag: Agent, total_timesteps, seed, n_steps=128, n_epoch
                     fit = ep_len[i] / env.max_steps if env.terminate else ep_viable[i] / ep_len[i]
                     outer_p.episode_end(i, fit)
                 ep_viable[i] = 0.0
+                if norm_reward:
+                    ret_acc[i] = 0.0
                 log["ep_end_step"].append(steps)
                 log["ep_len"].append(int(ep_len[i]))
                 log["ep_ret"].append(float(ep_ret[i]))
@@ -253,6 +265,9 @@ def train(env: ForageEnv, ag: Agent, total_timesteps, seed, n_steps=128, n_epoch
         adv_t = torch.as_tensor(adv.reshape(N))
         ret_t = torch.as_tensor(ret.reshape(N))
         mb = N // n_mb
+        # mean policy entropy on the rollout states, before this update (diagnostic only)
+        with torch.no_grad():
+            log["upd_entropy"].append([steps, float(Categorical(logits=ag.pi(o)).entropy().mean())])
         for _ in range(n_epochs):
             perm = torch.randperm(N)
             for s in range(0, N, mb):
@@ -286,6 +301,80 @@ def evaluate(ag: Agent, k, cond_kw, seeds, terminate=True, deterministic=False, 
         env.reset_one(i, s)
     rng = np.random.default_rng(act_seed)
     return rollout_eval(env, lambda e: ag.np_act(e.obs(), rng, deterministic)[0])
+
+
+def eval_diagnostics(act_fn, ent_fn, k, cond_kw, seeds, terminate=True, gamma=0.99):
+    """Diagnostics on the same paired episodes as `evaluate` (added 2026-11-20, second review).
+
+    act_fn(env) -> actions; ent_fn(env) -> per-env policy entropy (nats) or None.  When act_fn
+    uses the same action RNG as `evaluate`, the trajectories are identical (entropy does not
+    consume random numbers).  Per episode, with D_t = mean_i v_{i,t}^2 (the drive of DQ):
+      D0, DL      drive at the start and at the last step (at death, with termination);
+      Dbar_disc   the discounted mean of the drives visited at steps 1..L-1, weights
+                  (1-gamma) gamma^(t-1) renormalised to sum to 1 (NaN if L = 1);
+      Dbar        the plain mean of D_1..D_{L-1};
+      w_term      gamma^(L-1), the weight of D_L in the DQ return identity
+                  sum_t gamma^t (D_t - D_{t+1}) = D_0 - [(1-gamma) sum_{t=1}^{L-1} gamma^(t-1) D_t
+                  + gamma^(L-1) D_L];
+      ret_dq      the discounted DQ return of the episode (checks the identity);
+      entropy     mean policy entropy over the steps of the episode (nats)."""
+    from forage_env import make_reward_fn
+    env = ForageEnv(len(seeds), k, make_reward_fn("Alive"), terminate=terminate, **cond_kw)
+    for i, s in enumerate(seeds):
+        env.reset_one(i, s)
+    E = env.E
+    alive = np.ones(E, bool)
+    L = np.zeros(E, np.int64)
+    D0 = (env.v ** 2).mean(1)
+    Dprev = D0.copy()
+    DL = D0.copy()
+    s_disc, w_disc, s_plain = np.zeros(E), np.zeros(E), np.zeros(E)
+    ret = np.zeros(E)
+    ent_sum = np.zeros(E)
+    died = np.zeros(E, bool)
+    while alive.any():
+        if ent_fn is not None:
+            ent_sum += alive * ent_fn(env)
+        a = act_fn(env)
+        _, term, trunc, info = env.step(a)
+        D = (info["dev"] ** 2).mean(1)
+        al = alive.copy()
+        # D_prev (= D_{t}) enters the visited mean only if t >= 1, i.e. L >= 1 before this step
+        add = al & (L >= 1)
+        wt = (1 - gamma) * gamma ** np.maximum(L - 1, 0)
+        s_disc += add * wt * Dprev
+        w_disc += add * wt
+        s_plain += add * Dprev
+        ret += al * gamma ** L * (Dprev - D)
+        L += al
+        DL = np.where(al, D, DL)
+        Dprev = np.where(al, D, Dprev)
+        died |= al & term
+        alive &= ~(term | trunc)
+    out = []
+    for i in range(E):
+        n = int(L[i])
+        out.append({"length": n, "event": bool(died[i]), "D0": float(D0[i]), "DL": float(DL[i]),
+                    "Dbar_disc": float(s_disc[i] / w_disc[i]) if w_disc[i] > 0 else float("nan"),
+                    "Dbar": float(s_plain[i] / (n - 1)) if n > 1 else float("nan"),
+                    "w_term": float(gamma ** (n - 1)), "ret_dq": float(ret[i]),
+                    "entropy": float(ent_sum[i] / max(n, 1)) if ent_fn is not None else None})
+    return out
+
+
+def agent_fns(ag: Agent, act_seed=0, deterministic=False):
+    rng = np.random.default_rng(act_seed)
+
+    def act(env):
+        return ag.np_act(env.obs(), rng, deterministic)[0]
+
+    def ent(env):
+        lg = ag.np_logits(env.obs())
+        lg = lg - lg.max(1, keepdims=True)
+        p = np.exp(lg)
+        p /= p.sum(1, keepdims=True)
+        return -(p * np.log(p + 1e-12)).sum(1)
+    return act, ent
 
 
 def recovery_test(ag: Agent, k, cond_kw, seeds, deficit=-0.8, zone=0.5, horizon=150, act_seed=0):

@@ -67,11 +67,27 @@ def run_job(job):
     ac = ActorCritic(env.obs_dim, env.act_dim, learn_or=learn,
                      z_init=j["z_init"], beta_init=j["beta_init"],
                      log_std_init=j["log_std_init"], arch=j["arch"])
+    # intermediate evaluations (2026-11-20, second review): same deterministic evaluation as the
+    # final one, at exact checkpoints; partial results are written as the run progresses
+    cp_res = []
+
+    def on_cp(c):
+        ev_env = MRPEnv(c_["n"], c_["budget"], c_["noise"], rfn, noise_on=j["noise_on"],
+                        terminate=j["terminate"])
+        cp_res.append({"step": int(c), "eval": evaluate(ev_env, ac, j["eval_seeds"]),
+                       "wall_s": time.time() - t0})
+        os.makedirs(os.path.dirname(out_path), exist_ok=True)
+        with open(out_path + ".partial.tmp", "w", encoding="utf-8") as f:
+            json.dump({"job": {k: v for k, v in j.items() if k != "eval_seeds"}, "checkpoints": cp_res}, f)
+        os.replace(out_path + ".partial.tmp", out_path + ".partial")
+
+    c_ = c
     log = train(env, ac, total_timesteps=j["timesteps"], n_steps=j["n_steps"],
                 batch_size=j["batch_size"], n_epochs=j["n_epochs"], lr=j["lr"],
                 norm_reward=j["norm_reward"], norm_obs=j["norm_obs"],
                 episode_seed_rng=np.random.default_rng(10_000 + seed),
-                action_rng=np.random.default_rng(20_000 + seed))
+                action_rng=np.random.default_rng(20_000 + seed),
+                checkpoints=j.get("checkpoints"), on_checkpoint=on_cp)
     eval_env = MRPEnv(c["n"], c["budget"], c["noise"], rfn, noise_on=j["noise_on"],
                       terminate=j["terminate"])
     ev = evaluate(eval_env, ac, j["eval_seeds"])
@@ -85,6 +101,7 @@ def run_job(job):
         "train_curve": {"step": log["ep_end_step"], "len": log["ep_len"]},
         "or_traj": ({"step": log["upd_step"], "params": log["or_params"]} if learn else None),
         "or_final": ac.or_params_summary(),
+        "checkpoints": cp_res or None,
         "wall_s": time.time() - t0,
     }
     os.makedirs(os.path.dirname(out_path), exist_ok=True)

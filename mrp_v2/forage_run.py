@@ -80,9 +80,21 @@ def run_job(job):
     zi, bi = j.get("z_init", 0.5), j.get("beta_init", 1.0)
     ag = Agent(env.obs_dim, env.n_actions, learn_or=(j["variant"] == "OR_adapt"), z_init=zi, beta_init=bi)
     log = train(env, ag, j["timesteps"], seed=int(j["seed"]), lr=j["lr"], ent_coef=j["ent_coef"],
-                outer=(j["variant"] == "OR_outer"), outer_kw=dict(z_init=zi, beta_init=bi))
+                outer=(j["variant"] == "OR_outer"), outer_kw=dict(z_init=zi, beta_init=bi),
+                norm_reward=bool(j.get("norm_reward", False)))
     ev = evaluate(ag, k, kw, EVAL_SEEDS, terminate=j["terminate"], deterministic=False)
     ev_det = evaluate(ag, k, kw, EVAL_SEEDS, terminate=j["terminate"], deterministic=True)
+    diag = None
+    if j.get("diag"):
+        # same episodes and action RNG as `ev` (stochastic) and `ev_det` (argmax)
+        from forage_ppo import eval_diagnostics, agent_fns
+        a_s, e_s = agent_fns(ag, act_seed=0, deterministic=False)
+        a_d, e_d = agent_fns(ag, act_seed=0, deterministic=True)
+        diag = {"stoch": eval_diagnostics(a_s, e_s, k, kw, EVAL_SEEDS, terminate=j["terminate"]),
+                "det": eval_diagnostics(a_d, e_d, k, kw, EVAL_SEEDS, terminate=j["terminate"])}
+    if j.get("save"):
+        os.makedirs(os.path.join(j["out"], j["study"]), exist_ok=True)
+        torch.save(ag.state_dict(), path.replace(".json", ".pt"))
     rec = None
     if j.get("recovery"):
         from forage_ppo import recovery_test
@@ -92,6 +104,7 @@ def run_job(job):
         os.makedirs(os.path.join(j["out"], j["study"]), exist_ok=True)
         torch.save(ag.state_dict(), path.replace(".json", ".pt"))
     res = {"job": j, "cond_params": {**c, **kw}, "eval": ev, "eval_det": ev_det, "recovery": rec,
+           "diag": diag, "upd_entropy": log["upd_entropy"],
            "train_curve": {"step": log["ep_end_step"], "len": log["ep_len"], "ret": log["ep_ret"]},
            "or_traj": log["or_traj"], "or_final": ag.or_summary() or log.get("outer_final"), "wall_s": time.time() - t0}
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -273,7 +286,41 @@ def stage_FN10(out, **kw):
             for c in ("F3", "F4", "F5", "F6") for v in ("OR_fixed", "DQ") for sd in SEEDS]
 
 
-STAGES = {"FI": stage_FI, "FK": stage_FK, "FL": stage_FL, "FL2": stage_FL2, "FL3": stage_FL3, "FX": stage_FX, "FZ": stage_FZ, "FO": stage_FO, "FR": stage_FR, "FC": stage_FC, "FP": stage_FP, "FT": stage_FT, "FN": stage_FN, "FS": stage_FS, "FK10": stage_FK10, "FL30": stage_FL30, "FZ6": stage_FZ6, "FD": stage_FD, "FN10": stage_FN10}
+# ---- second review (2026-11-20; pre-registered in prereg/prereg_2026-11-20.md) ---------------
+def stage_R2E(out, **kw):
+    """R2-A: OR vs DQ without termination, F3-F6, 3e6 steps, with and without running-return
+    reward normalisation; policy entropy and saved weights.  norm_reward=False repeats the
+    F_noterm / F_ksweep runs with the same seeds (replication check)."""
+    return [dict(out=out, study="R2_nt_norm", cond=c, variant=v, seed=sd, terminate=False,
+                 tag=("noterm_nr" if nr else "noterm"), norm_reward=nr, diag=True, save=True, **kw)
+            for nr in (False, True) for c in ("F3", "F4", "F5", "F6") for v in ("OR_fixed", "DQ")
+            for sd in SEEDS]
+
+
+def stage_R2D(out, **kw):
+    """R2-B: dead-zone drive with sign shifts, with termination, F1-F6, 3e6 steps."""
+    J = [dict(out=out, study="R2_dz_sign", cond=c, variant=v, seed=sd, terminate=True, tag="term",
+              diag=True, **kw)
+         for c in ("F1", "F2", "F3", "F4", "F5", "F6") for v in ("DZ_c005", "DZ_alive") for sd in SEEDS]
+    # the unshifted dead-zone drive was run only in F1-F4 (F_term); add it for F5/F6
+    J += [dict(out=out, study="R2_dz_sign", cond=c, variant="DeadZone", seed=sd, terminate=True, tag="term",
+               diag=True, **kw) for c in ("F5", "F6") for sd in SEEDS]
+    return J
+
+
+def stage_R2T(out, **kw):
+    """R2-C: DQ and OR with termination, F1-F6, 3e6 steps, with saved weights and the
+    terminal-drive diagnostics (F1-F4 repeat F_term; F5/F6 repeat F_ksweep)."""
+    return [dict(out=out, study="R2_term_diag", cond=c, variant=v, seed=sd, terminate=True, tag="term",
+                 diag=True, save=True, **kw)
+            for c in ("F1", "F2", "F3", "F4", "F5", "F6") for v in ("DQ", "OR_fixed") for sd in SEEDS]
+
+
+def stage_R2(out, **kw):
+    return stage_R2E(out, **kw) + stage_R2T(out, **kw) + stage_R2D(out, **kw)
+
+
+STAGES = {"R2E": stage_R2E, "R2D": stage_R2D, "R2T": stage_R2T, "R2": stage_R2, "FI": stage_FI, "FK": stage_FK, "FL": stage_FL, "FL2": stage_FL2, "FL3": stage_FL3, "FX": stage_FX, "FZ": stage_FZ, "FO": stage_FO, "FR": stage_FR, "FC": stage_FC, "FP": stage_FP, "FT": stage_FT, "FN": stage_FN, "FS": stage_FS, "FK10": stage_FK10, "FL30": stage_FL30, "FZ6": stage_FZ6, "FD": stage_FD, "FN10": stage_FN10}
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()

@@ -56,6 +56,10 @@ REWARD_SPECS = {
     "DQ_c001":   dict(kind="dq", alive=0.01),
     "DQ_c01":    dict(kind="dq", alive=0.1),
     "OR_m1":     dict(kind="or", z=0.5, beta=1.0, alive=-1.0),
+    # sign controls for the dead-zone drive (2026-11-20, second review; prereg/prereg_2026-11-20.md):
+    # +0.05 is on its own scale (random-policy mean -0.019 to -0.038, SD 0.025-0.050), +1 as DR + alive
+    "DZ_c005":   dict(kind="deadzone", z=0.5, alive=0.05),
+    "DZ_alive":  dict(kind="deadzone", z=0.5, alive=1.0),
 }
 
 

@@ -224,9 +224,37 @@ def stage_NT2(out):
     return _nt(out, ["C4", "C6", "C8"])
 
 
+# ---- second review (2026-11-20; pre-registered in prereg/prereg_2026-11-20.md) -------------
+R2_LONG_VARIANTS = ["OR_fixed", "DQ", "DR", "Alive", "DR_alive"]
+R2_CP_TERM = [100_000, 200_000, 300_000, 500_000, 1_000_000, 1_500_000]       # final 2e6
+R2_CP_NOTERM = [100_000, 200_000, 300_000, 500_000, 750_000]                  # final 1e6
+
+
+def stage_R2P(out):
+    """Long-training pilot: does learning in C5 (where 3e5 steps already helped) and C7 (where
+    every agent stays near uniform allocation) stabilise?  3 seeds, exact checkpoints; the
+    1e5 checkpoint reproduces the L_learn / NT_noterm runs with the same seeds."""
+    nt = [dict(study="R2_long_pilot", out=out, cond=c, variant=v, seed=s, arch="shared",
+               terminate=False, tag="shared_noterm_1M", timesteps=1_000_000, checkpoints=R2_CP_NOTERM)
+          for c in ("C5", "C7") for v in R2_LONG_VARIANTS for s in SEEDS[:3]]
+    tm = [dict(study="R2_long_pilot", out=out, cond=c, variant=v, seed=s, arch="shared",
+               tag="shared_2M", timesteps=2_000_000, checkpoints=R2_CP_TERM)
+          for c in ("C5", "C7") for v in R2_LONG_VARIANTS for s in SEEDS[:3]]
+    return nt + tm
+
+
+def stage_R2M(out):
+    """Min and soft-min aggregation without termination (C3-C8, 10 seeds, 1e5 steps), with
+    OR as reference from NT_noterm (same seeds and settings)."""
+    return [dict(study="NT_noterm", out=out, cond=c, variant=v, seed=s, arch="shared",
+                 terminate=False, tag="shared_noterm")
+            for c in ("C3", "C4", "C5", "C6", "C7", "C8") for v in ("OR_min", "OR_softmin") for s in SEEDS]
+
+
 STAGES = {"A": stage_A, "T": stage_T, "F": stage_F, "P": stage_P, "N": stage_N, "L": stage_L,
           "L2": stage_L2, "LG": stage_LG, "LN": stage_LN,
-          "NTP": stage_NTP, "NT": stage_NT, "NT2": stage_NT2}
+          "NTP": stage_NTP, "NT": stage_NT, "NT2": stage_NT2,
+          "R2P": stage_R2P, "R2M": stage_R2M}
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()

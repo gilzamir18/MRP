@@ -253,8 +253,14 @@ class VecRunningMeanStd:
 def train(env, ac: ActorCritic, total_timesteps=100_000, n_steps=1024, batch_size=64,
           n_epochs=10, lr=3e-4, gamma=0.99, gae_lambda=0.95, clip=0.2, vf_coef=0.5,
           ent_coef=0.0, max_grad_norm=0.5, norm_reward=False, episode_seed_rng=None,
-          action_rng=None, norm_obs=False):
-    """Train in place.  Returns a log dict (training curves + OR parameter trajectory)."""
+          action_rng=None, norm_obs=False, checkpoints=None, on_checkpoint=None):
+    """Train in place.  Returns a log dict (training curves + OR parameter trajectory).
+
+    checkpoints / on_checkpoint (added 2026-11-20, second review): rollouts are cut at each
+    checkpoint step so that the agent at checkpoint c is exactly the agent a run with
+    total_timesteps = c would return; on_checkpoint(c) is called after that update.  The
+    callback must not consume the training RNGs (deterministic evaluation does not)."""
+    cps = sorted(c for c in (checkpoints or []) if 0 < c < total_timesteps)
     opt = torch.optim.Adam(ac.parameters(), lr=lr, eps=1e-5, foreach=True)
     if norm_obs:
         ac.obs_rms = VecRunningMeanStd(env.obs_dim)
@@ -270,6 +276,8 @@ def train(env, ac: ActorCritic, total_timesteps=100_000, n_steps=1024, batch_siz
 
     while steps < total_timesteps:
         T = min(n_steps, total_timesteps - steps)
+        if cps:
+            T = min(T, cps[0] - steps)
         B_obs = np.zeros((T, env.obs_dim), np.float32)
         B_act = np.zeros((T, env.act_dim), np.float32)
         B_raw = np.zeros((T, max(n_p, 1)), np.float32)
@@ -347,6 +355,10 @@ def train(env, ac: ActorCritic, total_timesteps=100_000, n_steps=1024, batch_siz
         ac.sync_numpy()
         log["upd_step"].append(steps)
         log["or_params"].append(ac.or_params_summary())
+        if cps and steps >= cps[0]:
+            c = cps.pop(0)
+            if on_checkpoint is not None:
+                on_checkpoint(c)
     return log
 
 

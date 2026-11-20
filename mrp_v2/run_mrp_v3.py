@@ -95,6 +95,12 @@ if __name__ == "__main__":
         pilot()
     elif cmd == "run":
         run_stages()
+    elif cmd == "stage":   # python run_mrp_v3.py stage R2P R2M [--workers N]  (2026-11-20)
+        from runner import run_many
+        w = workers_arg()
+        assert w <= 10, "this machine crashed with 15 workers; use <= 10"
+        for st in [x for x in sys.argv[2:] if x in experiments.STAGES]:
+            run_many(experiments.STAGES[st](RES_V3), workers=w, label=st)
     elif cmd == "probes":
         probes()
     elif cmd == "analyze":
