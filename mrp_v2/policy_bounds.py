@@ -80,7 +80,7 @@ def run(conds=None):
 
 
 if __name__ == "__main__":
-    out = os.path.join(HERE, "..", "docs", "results_v2", "analysis")
+    out = os.path.join(os.environ.get("MRP_RES", os.path.join(HERE, "..", "docs", "results_v2")), "analysis")
     os.makedirs(out, exist_ok=True)
     df = run()
     df.to_csv(os.path.join(out, "policy_bounds_episodes.csv"), index=False)

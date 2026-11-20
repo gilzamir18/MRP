@@ -51,7 +51,7 @@ def run(out_csv, episodes=20):
 
 
 if __name__ == "__main__":
-    out = os.path.join(HERE, "..", "docs", "results_v2", "analysis")
+    out = os.path.join(os.environ.get("MRP_RES", os.path.join(HERE, "..", "docs", "results_v2")), "analysis")
     os.makedirs(out, exist_ok=True)
     df = run(os.path.join(out, "reward_scale_probe.csv"))
     piv = df[df.policy == "random"].pivot_table(index="variant", values=["mean", "std", "frac_pos"],

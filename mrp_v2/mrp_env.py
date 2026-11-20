@@ -22,12 +22,24 @@ by the review:
     episode"; the text must be corrected (or ``decay_walk=False`` used).
 
 The policy outputs unbounded allocation logits; allocation = b * softmax(logits).
+
+Dynamics versions (``dynamics`` argument, or environment variable MRP_DYNAMICS):
+  * "legacy" (default; used for every result in docs/results_v2*): identical to the
+    original env.py.  Both depletion and correction are gated by |v| > MIN_SIGNIFICANT,
+    so a variable that lands in |v| <= 1e-3 never changes again (absorbing state).
+  * "v3" (docs/results_v3_mrp, found 2026-11-17): depletion always applies.  Inside the
+    band it follows the variable's last sign with |v| > MIN_SIGNIFICANT (initial sign at
+    reset), so the variable leaves the band on the next step.  Correction is unchanged
+    (it can overshoot the target, and it has no effect inside the band).
 """
 from __future__ import annotations
+
+import os
 
 import numpy as np
 
 MIN_SIGNIFICANT = 1e-3
+DYNAMICS = ("legacy", "v3")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -133,7 +145,13 @@ class MRPEnv:
                  decay_mu: float = 1e-3, decay_std: float = 1e-3,
                  decay_walk: bool = True, max_steps: int = 1000,
                  noise_on: str = "state", reward_source: str = "latent",
-                 safety_zone_obs: float = 0.5, terminate: bool = True):
+                 safety_zone_obs: float = 0.5, terminate: bool = True,
+                 dynamics: str | None = None):
+        if dynamics is None:
+            dynamics = os.environ.get("MRP_DYNAMICS", "legacy")
+        if dynamics not in DYNAMICS:
+            raise ValueError(f"dynamics must be one of {DYNAMICS}, got {dynamics!r}")
+        self.dynamics = dynamics
         self.n = n
         self.budget = float(budget)
         self.obs_noise = float(obs_noise)
@@ -162,6 +180,7 @@ class MRPEnv:
         self._rng_obs = np.random.default_rng(s_obs)
         self.v = self._rng_dyn.uniform(-0.9, 0.9, self.n)
         self.decay = self._rng_dyn.normal(self.decay_mu, self.decay_std, self.n)
+        self._sgn = np.where(self.v < 0, -1.0, 1.0)   # last significant sign (v3 dynamics)
         self.t = 0
         self._obs_v = self._noisy_state()
         return self._obs()
@@ -205,11 +224,19 @@ class MRPEnv:
         v = v_prev.copy()
         neg = v < -MIN_SIGNIFICANT
         pos = v > MIN_SIGNIFICANT
-        v = np.where(neg, v - self.decay, np.where(pos, v + self.decay, v))
+        if self.dynamics == "v3":
+            # depletion always applies; inside the band it keeps the last significant sign
+            sgn = np.where(neg, -1.0, np.where(pos, 1.0, self._sgn))
+            v = v + sgn * self.decay
+        else:
+            v = np.where(neg, v - self.decay, np.where(pos, v + self.decay, v))
         neg = v < -MIN_SIGNIFICANT
         pos = v > MIN_SIGNIFICANT
         v = np.where(neg, v + a, np.where(pos, v - a, v))
-        viol = np.abs(v) > 1.0                 # viability violation (pre-clip)
+        if self.dynamics == "v3":
+            self._sgn = np.where(v < -MIN_SIGNIFICANT, -1.0,
+                                 np.where(v > MIN_SIGNIFICANT, 1.0, self._sgn))
+        viol = np.abs(v) > 1.0                # viability violation (pre-clip)
         if not self.terminate:
             v = np.clip(v, -1.0, 1.0)
         self.v = v

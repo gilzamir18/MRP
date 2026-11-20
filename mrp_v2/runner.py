@@ -80,6 +80,7 @@ def run_job(job):
     res = {
         "job": {k: v for k, v in j.items() if k != "eval_seeds"},
         "cond_params": c,
+        "dynamics": env.dynamics,
         "eval": ev,
         "train_curve": {"step": log["ep_end_step"], "len": log["ep_len"]},
         "or_traj": ({"step": log["upd_step"], "params": log["or_params"]} if learn else None),
