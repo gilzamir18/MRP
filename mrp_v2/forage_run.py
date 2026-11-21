@@ -78,6 +78,12 @@ def run_job(job):
     kw = dict(W=j["W"], decay_mu=c["decay_mu"])
     env = ForageEnv(j["n_envs"], k, make_reward_fn(j["variant"]), terminate=j["terminate"], **kw)
     zi, bi = j.get("z_init", 0.5), j.get("beta_init", 1.0)
+    if j.get("seed_init", False):
+        # Fix found 2026-11-20 (second review): every published foraging study created the Agent
+        # BEFORE train() seeds torch, so the network initialisation was not controlled by the
+        # seed (torch's initial seed is random per process).  seed_init=True seeds it; the default
+        # keeps the published behaviour, which therefore cannot be reproduced bit for bit.
+        torch.manual_seed(int(j["seed"]))
     ag = Agent(env.obs_dim, env.n_actions, learn_or=(j["variant"] == "OR_adapt"), z_init=zi, beta_init=bi)
     log = train(env, ag, j["timesteps"], seed=int(j["seed"]), lr=j["lr"], ent_coef=j["ent_coef"],
                 outer=(j["variant"] == "OR_outer"), outer_kw=dict(z_init=zi, beta_init=bi),
