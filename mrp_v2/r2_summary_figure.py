@@ -75,9 +75,11 @@ def main():
         ("OR − DQ", 0): [("stochastic", True, mrp_diffs(Lcsv, "shared", "rmst", "OR_fixed", "DQ"))],
         ("OR − DQ", 1): [("stochastic", True, mrp_diffs(NTcsv, None, "frac_viable", "OR_fixed", "DQ"))],
         ("OR − DQ", 2): [("stochastic", True, forage_diffs(fterm, "OR_fixed", "DQ", "length"))],
-        ("OR − DQ", 3): [("stochastic", True, forage_diffs(fnt, "OR_fixed", "DQ", "frac_viable")),
-                         ("deterministic", False,
-                          forage_diffs(fnt, "OR_fixed", "DQ", "frac_viable", "eval_det"))],
+        ("OR − DQ", 3): [("stochastic policy", True, forage_diffs(fnt, "OR_fixed", "DQ", "frac_viable")),
+                         ("deterministic policy", False,
+                          forage_diffs(fnt, "OR_fixed", "DQ", "frac_viable", "eval_det")),
+                         ("stochastic, return normalisation (separate runs)", "sq",
+                          forage_diffs([("R2_nt_norm", "noterm_nr")], "OR_fixed", "DQ", "frac_viable"))],
         ("OR − Alive", 0): [("stochastic", True, mrp_diffs(Lcsv, "shared", "rmst", "OR_fixed", "Alive"))],
         ("OR − Alive", 1): [("stochastic", True, mrp_diffs(NTcsv, None, "frac_viable", "OR_fixed", "Alive"))],
         ("OR − Alive", 2): [("stochastic", True, forage_diffs(fterm, "OR_fixed", "Alive", "length"))],
@@ -93,15 +95,16 @@ def main():
             series = grid[(comp, ci)]
             conds = sorted({c for *_, d in series for c in d}, key=lambda s: int(s[1:]))
             xs = {c: i for i, c in enumerate(conds)}
-            off = [0.0] if len(series) == 1 else [-0.17, 0.17]
+            off = [0.0] if len(series) == 1 else list(np.linspace(-0.27, 0.27, len(series)))
             ax.axhline(0, color=MUTED, lw=0.8, zorder=1)
             for (lab, filled, d), o in zip(series, off):
                 for j, (c, x) in enumerate(d.items()):
                     lo, hi = boot_ci(x)
                     m = x.mean()
                     ax.plot([xs[c] + o] * 2, [lo, hi], color=col, lw=1.4, solid_capstyle="round", zorder=2)
-                    ax.plot(xs[c] + o, m, "o", ms=4, mec=col, mfc=col if filled else "white", mew=1.3,
-                            zorder=3, label=f"{lab} policy" if (j == 0 and len(series) > 1) else None)
+                    ax.plot(xs[c] + o, m, "s" if filled == "sq" else "o", ms=4, mec=col,
+                            mfc="white" if filled is False else col, mew=1.3,
+                            zorder=3, label=lab if (j == 0 and len(series) > 1) else None)
                     rows.append(dict(comparison=comp, panel=cols[ci], policy=lab, cond=c, n=len(x),
                                      mean=m, ci_lo=lo, ci_hi=hi))
             ax.set_xticks(range(len(conds)), conds)
@@ -113,7 +116,7 @@ def main():
             ax.spines[["top", "right"]].set_visible(False)
             if len(series) > 1:
                 handles = ax.get_legend_handles_labels()
-    fig.legend(*handles, frameon=False, fontsize=7, loc="outside lower center", ncol=2,
+    fig.legend(*handles, frameon=False, fontsize=7, loc="outside lower center", ncol=3,
                title="Foraging without termination, OR − DQ:", title_fontsize=7)
     for ext in ("pdf", "png"):
         fig.savefig(os.path.join(OUT, f"SUMMARY_paired_differences.{ext}"), dpi=300)

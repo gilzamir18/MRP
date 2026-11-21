@@ -16,7 +16,7 @@ import sys
 
 import numpy as np
 import pandas as pd
-from scipy.stats import wilcoxon
+from scipy.stats import wilcoxon, rankdata
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DOCS = os.path.join(os.path.dirname(HERE), "docs")
@@ -42,6 +42,16 @@ def wil(x, y):
     if np.all(d == 0):
         return 1.0
     return float(wilcoxon(d, method="exact").pvalue) if np.sum(d != 0) >= 1 else 1.0
+
+
+def rank_biserial(d):
+    """Matched-pairs rank-biserial correlation over the non-zero differences (as in Table S1)."""
+    d = np.asarray(d, dtype=float)
+    d = d[d != 0]
+    if len(d) == 0:
+        return 0.0
+    rk = rankdata(np.abs(d))
+    return float((rk[d > 0].sum() - rk[d < 0].sum()) / rk.sum())
 
 
 def boot_ci(d, rng, n=10_000):
@@ -76,7 +86,7 @@ def contrast_rows(fam, pairs, rng):
         d = xa - ya
         lo, hi = boot_ci(d, rng) if len(d) > 1 else (np.nan, np.nan)
         rows.append(dict(family=fam, contrast=lab, cond=c, n=len(s), mean_a=xa.mean(), mean_b=ya.mean(),
-                         diff=d.mean(), ci_lo=lo, ci_hi=hi, p=wil(xa, ya)))
+                         diff=d.mean(), ci_lo=lo, ci_hi=hi, r_rb=rank_biserial(d), p=wil(xa, ya)))
     for r, a in zip(rows, holm([r["p"] for r in rows])):
         r["p_holm"] = a
     return rows
