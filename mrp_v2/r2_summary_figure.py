@@ -7,7 +7,7 @@ viable fraction.  Each panel has its own y scale (the effects differ by orders o
 In the foraging panels without termination the deterministic evaluation policy is shown with hollow
 markers.  Points = mean paired difference over the 10 training seeds; bars = 95% percentile
 bootstrap CI of the mean (10^4 resamples).
-Output: output/SUMMARY_paired_differences.{pdf,png}, docs/results_v2/analysis/R2_summary_figure.csv
+Output: output/figs_v2/SUMMARY_paired_differences.{pdf,png}, docs/results_v2/analysis/R2_summary_figure.csv
 """
 import glob
 import json
@@ -22,7 +22,7 @@ import pandas as pd
 HERE = os.path.dirname(os.path.abspath(__file__))
 DOCS = os.path.join(os.path.dirname(HERE), "docs")
 V2, V3 = os.path.join(DOCS, "results_v2"), os.path.join(DOCS, "results_v3_mrp")
-OUT = os.path.join(os.path.dirname(os.path.dirname(HERE)), "output")
+OUT = os.path.join(os.path.dirname(os.path.dirname(HERE)), "output", "figs_v2")
 BLUE, ORANGE = "#2a78d6", "#eb6834"
 INK, MUTED, GRID = "#2b2b29", "#6b6a63", "#e4e3de"
 rng = np.random.default_rng(2026_11_20)
